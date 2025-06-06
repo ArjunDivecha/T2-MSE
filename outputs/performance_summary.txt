@@ -1,0 +1,41 @@
+================================================================================
+FACTOR SELECTION MODEL PERFORMANCE SUMMARY
+================================================================================
+
+MODEL PERFORMANCE:
+----------------------------------------
+Average Top-5 Return:     0.0030 (0.30%)
+Hit Rate:                 0.097 (9.7%)
+Sharpe Ratio:             0.707
+Information Ratio:        0.707
+Sortino Ratio:            1.078
+Win Rate:                 0.599 (59.9%)
+Return Volatility:        0.0145
+
+BENCHMARK PERFORMANCE:
+----------------------------------------
+Equal-Weighted Return:    0.0005 (0.05%)
+Equal-Weighted Sharpe:    0.164
+Random Top-5 Return:      -0.0023 (-0.23%)
+Random Top-5 Sharpe:      -0.193
+
+PERFORMANCE vs BENCHMARKS:
+----------------------------------------
+Excess Return vs EW:      0.0025 (0.03% annually)
+Return Ratio vs EW:       5.73x
+Excess Return vs Random:  0.0053 (0.06% annually)
+Return Ratio vs Random:   -1.28x
+
+STATISTICAL SIGNIFICANCE:
+----------------------------------------
+vs Equal-Weighted:        Significant (p=0.0341)
+vs Random Top-5:          Not Significant (p=0.0592)
+
+SUCCESS CRITERIA CHECK:
+----------------------------------------
+✅ Beat EW by >10% annually: NO (2.9%)
+✅ Hit rate >30%:            NO (9.7%)
+✅ Sharpe ratio >1.0:        NO (0.71)
+
+Sample Size: 242 months
+================================================================================

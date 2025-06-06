@@ -10,12 +10,12 @@ PLOTS_DIR = 'outputs/plots/'
 N_FACTORS = 83  # Updated from 85 based on actual data files
 FACTOR_NAMES = None  # Will be loaded from data files
 
-# Model defaults (updated from hyperparameter tuning)
+# Model defaults (updated from tuning)
 DEFAULT_CONFIG = {
-    'hidden_sizes': [512, 256],
-    'learning_rate': 0.001,
+    'hidden_sizes': [1024, 512, 256],
+    'learning_rate': 0.01,
     'dropout_rate': 0.4,
-    'batch_size': 32,
+    'batch_size': 16,
     'weight_decay': 1e-05
 }
 
