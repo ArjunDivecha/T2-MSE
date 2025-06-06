@@ -10,7 +10,7 @@ import torch
 from .config import HYPERPARAM_GRID, OUTPUT_DIR, get_device, setup_logging
 from .data import load_data, create_rolling_windows, select_random_months
 from .train import train_model
-from .model import calculate_top5_metrics
+from .model import calculate_top5_metrics, mse_loss_eval
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +53,9 @@ def evaluate_hyperparameters(
     logger.info(f"Evaluating hyperparameters: {params}")
 
     # Track metrics across all training windows
-    all_returns = []
-    all_hit_rates = []
+    all_mse_losses = []
     all_train_times = []
     all_epochs = []
-    all_val_losses = []
 
     for i, (train_X, train_y, val_X, val_y, date) in enumerate(train_data):
         try:
@@ -81,71 +79,52 @@ def evaluate_hyperparameters(
 
             train_time = time.time() - start_time
 
-            # Use validation loss from training history for evaluation
-            val_loss = history.get("best_val_loss", float("inf"))
-            all_val_losses.append(val_loss)
-
-            # Evaluate on validation set for other metrics
+            # Evaluate on validation set using MSE loss
             model.eval()
             with torch.no_grad():
                 val_X_tensor = torch.FloatTensor(val_X).to(device)
                 val_y_tensor = torch.FloatTensor(val_y).to(device)
                 predictions = model(val_X_tensor)
 
-                metrics = calculate_top5_metrics(predictions, val_y_tensor)
-
-                all_returns.append(metrics["avg_top5_return"])
-                all_hit_rates.append(metrics["hit_rate"])
+                # Calculate MSE loss for evaluation
+                mse_val_loss = mse_loss_eval(predictions, val_y_tensor).item()
+                all_mse_losses.append(mse_val_loss)
                 all_train_times.append(train_time)
                 all_epochs.append(history["final_epoch"])
 
             logger.debug(
-                f"Month {i+1}/{len(train_data)} - Val Loss: {val_loss:.6f}, "
-                f"Return: {metrics['avg_top5_return']:.4f}, "
-                f"Hit Rate: {metrics['hit_rate']:.3f}, "
+                f"Month {i+1}/{len(train_data)} - MSE Val Loss: {mse_val_loss:.6f}, "
                 f"Time: {train_time:.2f}s"
             )
 
         except Exception as e:
             logger.warning(f"Failed to train on month {i+1}: {e}")
             # Use poor metrics for failed training
-            all_val_losses.append(float("inf"))  # Very high loss
-            all_returns.append(-0.1)  # Very poor return
-            all_hit_rates.append(0.0)  # No hits
+            all_mse_losses.append(float("inf"))  # Very high MSE loss
             all_train_times.append(0.0)
             all_epochs.append(0)
 
     # Calculate average metrics
-    valid_losses = [loss for loss in all_val_losses if loss != float("inf")]
-    avg_val_loss = np.mean(valid_losses)
-    avg_return = np.mean(all_returns)
-    avg_hit_rate = np.mean(all_hit_rates)
+    valid_mse_losses = [loss for loss in all_mse_losses if loss != float("inf")]
+    avg_mse_loss = np.mean(valid_mse_losses) if valid_mse_losses else float("inf")
     avg_train_time = np.mean(all_train_times)
     avg_epochs = np.mean(all_epochs)
 
     # Calculate stability metrics
-    val_loss_std = np.std(valid_losses)
-    return_std = np.std(all_returns)
-    hit_rate_std = np.std(all_hit_rates)
+    mse_loss_std = np.std(valid_mse_losses) if valid_mse_losses else 0.0
 
     results = {
-        "avg_val_loss": avg_val_loss,
-        "val_loss_std": val_loss_std,
-        "avg_top5_return": avg_return,
-        "avg_hit_rate": avg_hit_rate,
+        "avg_mse_loss": avg_mse_loss,
+        "mse_loss_std": mse_loss_std,
         "avg_train_time": avg_train_time,
         "avg_epochs": avg_epochs,
-        "return_std": return_std,
-        "hit_rate_std": hit_rate_std,
         "success_rate": (
-            sum(1 for r in all_returns if r > -0.05) / len(all_returns)
+            sum(1 for loss in all_mse_losses if loss != float("inf")) / len(all_mse_losses)
         ),  # Fraction of successful trainings
     }
 
     logger.info(
-        f"Results - Val Loss: {avg_val_loss:.6f}±{val_loss_std:.6f}, "
-        f"Return: {avg_return:.4f}±{return_std:.4f}, "
-        f"Hit Rate: {avg_hit_rate:.3f}±{hit_rate_std:.3f}, "
+        f"Results - MSE Loss: {avg_mse_loss:.6f}±{mse_loss_std:.6f}, "
         f"Time: {avg_train_time:.2f}s"
     )
 
@@ -224,8 +203,7 @@ def run_hyperparameter_search(
 
             logger.info(
                 f"Completed {i+1}/{len(param_combinations)} - "
-                f"Val Loss: {metrics['avg_val_loss']:.6f}, "
-                f"Return: {metrics['avg_top5_return']:.4f}"
+                f"MSE Loss: {metrics['avg_mse_loss']:.6f}"
             )
 
         except Exception as e:
@@ -234,14 +212,10 @@ def run_hyperparameter_search(
             result_row = params.copy()
             result_row.update(
                 {
-                    "avg_val_loss": float("inf"),
-                    "val_loss_std": 0.0,
-                    "avg_top5_return": -1.0,
-                    "avg_hit_rate": 0.0,
+                    "avg_mse_loss": float("inf"),
+                    "mse_loss_std": 0.0,
                     "avg_train_time": 0.0,
                     "avg_epochs": 0,
-                    "return_std": 0.0,
-                    "hit_rate_std": 0.0,
                     "success_rate": 0.0,
                 }
             )
@@ -250,21 +224,19 @@ def run_hyperparameter_search(
     # Convert to DataFrame
     results_df = pd.DataFrame(results)
 
-    # Sort by primary metric (average validation loss)
-    results_df = results_df.sort_values("avg_val_loss", ascending=True)
+    # Sort by primary metric (average MSE loss)
+    results_df = results_df.sort_values("avg_mse_loss", ascending=True)
 
     total_time = time.time() - start_time
     logger.info(f"Hyperparameter search completed in {total_time:.2f}s")
 
     # Log top results
     logger.info(
-        "Top 5 hyperparameter combinations by Validation Loss:"
+        "Top 5 hyperparameter combinations by MSE Loss:"
     )
     for i, (_, row) in enumerate(results_df.head().iterrows()):
         logger.info(
-            f"  {i+1}. Val Loss: {row['avg_val_loss']:.6f}, "
-            f"Return: {row['avg_top5_return']:.4f}, "
-            f"Hit Rate: {row['avg_hit_rate']:.3f}, "
+            f"  {i+1}. MSE Loss: {row['avg_mse_loss']:.6f}, "
             f"Hidden: {row['hidden_sizes']}, "
             f"LR: {row['learning_rate']:.0e}, "
             f"Dropout: {row['dropout_rate']:.1f}"
@@ -304,9 +276,7 @@ def get_best_hyperparameters(results_df: pd.DataFrame) -> Dict[str, Any]:
     for key, value in best_params.items():
         logger.info(f"  {key}: {value}")
     logger.info(
-        f"  Performance: {best_row['avg_val_loss']:.6f} validation loss, "
-        f"{best_row['avg_top5_return']:.4f} return, "
-        f"{best_row['avg_hit_rate']:.3f} hit rate"
+        f"  Performance: {best_row['avg_mse_loss']:.6f} MSE loss"
     )
 
     return best_params

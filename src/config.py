@@ -12,11 +12,11 @@ FACTOR_NAMES = None  # Will be loaded from data files
 
 # Model defaults (updated from tuning)
 DEFAULT_CONFIG = {
-    'hidden_sizes': [1024, 512, 256],
+    'hidden_sizes': [512, 256],
     'learning_rate': 0.01,
-    'dropout_rate': 0.4,
+    'dropout_rate': 0.2,
     'batch_size': 16,
-    'weight_decay': 1e-05
+    'weight_decay': 0.0
 }
 
 # Training settings
@@ -34,17 +34,16 @@ BACKTEST_CONFIG = {
     'n_jobs': 8
 }
 
-# Hyperparameter grid for tuning
+# Hyperparameter grid for tuning (minimal for testing)
 HYPERPARAM_GRID = {
     'hidden_sizes': [
         [256],
-        [512, 256],
-        [1024, 512, 256]
+        [512, 256]
     ],
-    'learning_rate': [1e-4, 1e-3, 1e-2],
-    'dropout_rate': [0.0, 0.2, 0.4],
-    'batch_size': [16, 32],
-    'weight_decay': [0, 1e-5, 1e-4]
+    'learning_rate': [1e-3, 1e-2],
+    'dropout_rate': [0.0, 0.2],
+    'batch_size': [16],
+    'weight_decay': [0, 1e-5]
 }
 
 # Device configuration
